@@ -52,7 +52,7 @@ bool Game::init() {
       success = false;
    }
    else {
-      window = SDL_CreateWindow("Test", SDL_WINDOWPOS_UNDEFINED,
+      window = SDL_CreateWindow("Tetris", SDL_WINDOWPOS_UNDEFINED,
                                 SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH,
                                 SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
       if (!window) {
@@ -375,6 +375,9 @@ public:
    Board();
    bool collision(int &posX, int &posY);
    bool legalRotate(int &curRotate);
+   bool emptyLine(int &posY);
+   void deleteLine(int posY);
+   void deleteMultiLine();
    void moveLR(char &LR);
    void init();
    void newBlock();
@@ -419,6 +422,34 @@ bool Board::legalRotate(int &curRotate) {
       }
    }
    return true;
+}
+
+bool Board::emptyLine(int &posY) {
+   for (int x = 0; x < GAME_WIDTH; x+=20)
+      if (board[posY][x] != 0) return false;
+   return true;
+}
+
+void Board::deleteLine(int posY) {
+   while (!emptyLine(posY) && posY > 0) {
+      for (int x = 0; x < GAME_WIDTH; x+=20)
+         board[posY][x] = board[posY - 20][x];
+      posY-=20;
+   }
+}
+
+void Board::deleteMultiLine() {
+   int y = SCREEN_HEIGHT - 20;
+   int x = 0;
+   while (!emptyLine(y)) {
+      if (board[y][x] != 0) {
+         for (x = 0; x < GAME_WIDTH; x+=20) {
+            if (board[y][x] == 0) break;
+         }
+         if (x == GAME_WIDTH) deleteLine(y);
+      }
+      else y-=20;
+   }
 }
 
 void Board::moveLR(char &LR) {
@@ -523,6 +554,7 @@ void Board::background() {
 }
 
 void Board::render() {
+   deleteMultiLine();
    for (int y = 0; y < SCREEN_HEIGHT; y+=20)
       for (int x = 0; x < GAME_WIDTH; x+=20) {
          if (board[y][x] == 1) {
@@ -567,41 +599,14 @@ void Board::rotation(char &rotateLR) {
 
 int main(int argc, const char * argv[]) {
    srand(time(NULL));
-   cout << "True: " << true << endl;
-   int z[2][5][5] = {
-      {
-         {0,0,0,0,0},
-         {0,0,0,0,0},
-         {0,1,1,0,0},
-         {0,0,2,1,0},
-         {0,0,0,0,0}
-
-      },
-      {
-         {0,0,0,0,0},
-         {0,0,0,0,0},
-         {0,0,0,1,0},
-         {0,0,2,1,0},
-         {0,0,1,0,0}}};
    Game game;
    char LR = ' ';
    char rotateLR = ' ';
    bool quit = false;
    SDL_Event e;
-   int x = 0;
-   int rotate = 1;
    Uint32 cur = SDL_GetTicks(), old = 0;
    Board board;
-   Block sample;
    bool drop = false;
-   int test[5][5] = {0};
-   sample.getBlocks(x, rotate, test);
-   for (int i = 0; i < 5; i++) {
-      for (int j = 0; j < 5; j++)
-         cout << test[i][j] << ", ";
-      cout << endl;
-   }
-//   SDL_Renderer *block = draw(z, game.SCREEN_WIDTH / 2, game.SCREEN_HEIGHT / 2, renderer);
    board.init();
    while (!quit) {
       drop = false;
@@ -638,8 +643,6 @@ int main(int argc, const char * argv[]) {
       }
       board.drawBoard(drop);
       board.render();
-//      draw(z[rotate], x, (int)cur, renderer);
-
 
       SDL_RenderPresent(renderer);
       SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
