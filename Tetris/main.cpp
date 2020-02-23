@@ -369,10 +369,12 @@ class Board : public Block {
 private:
    int curBlock[5][5], nextBlock[5][5];
    int initialPos[2], curPosY, curPosX;
+   int type, rotate, nextType, nextRotate;
    int board [SCREEN_HEIGHT][GAME_WIDTH];
 public:
    Board();
    bool collision(int &posX, int &posY);
+   bool legalRotate(int &curRotate);
    void moveLR(char &LR);
    void init();
    void newBlock();
@@ -384,6 +386,7 @@ public:
    void render();
    void setPosY() {curPosY+=20;}
    void setPosX(char &LR);
+   void rotation(char &rotateLR);
 };
 
 Board::Board() {
@@ -405,6 +408,19 @@ bool Board::collision(int &posX, int &posY) {
    return false;
 }
 
+bool Board::legalRotate(int &curRotate) {
+   int tempBlock[5][5];
+   getBlocks(type, curRotate, tempBlock);
+   for (int y0 = 0, y1 = curPosY; y0 < 5; y0++, y1+=20) {
+      for (int x0 = 0, x1 = curPosX; x0 < 5; x0++, x1+=20) {
+         if (tempBlock[y0][x0] != 0 && x1 < 0) return false;
+         else if (tempBlock[y0][x0] != 0 && board[y1][x1] != 0) return false;
+         else if (tempBlock[y0][x0] != 0 && x1 >= GAME_WIDTH) return false;
+      }
+   }
+   return true;
+}
+
 void Board::moveLR(char &LR) {
    for (int y0 = 0, y1 = curPosY; y0 < 5; y0++, y1+=20) {
       for (int x0 = 0, x1 = curPosX; x0 < 5; x0++, x1+=20) {
@@ -419,19 +435,18 @@ void Board::moveLR(char &LR) {
 void Board::init() {
    background();
 //   TO DO: draw initial block and next block on the screen
-   int randBlock, randType;
-   randBlock = rand() % 7;
-   randType = rand() % 4;
-   getBlocks(randBlock, randType, curBlock);
-   getInitPos(randBlock, randType, initialPos);
+   type = rand() % 7;
+   rotate = rand() % 4;
+   getBlocks(type, rotate, curBlock);
+   getInitPos(type, rotate, initialPos);
    curPosX = (GAME_WIDTH / 2) + initialPos[0] * 20;
    renderBlock(curBlock, curPosX, initialPos[1] * 20);
    curPosY = 0;
 
-   randBlock = rand() % 7;
-   randType = rand() % 4;
-   getBlocks(randBlock, randType, nextBlock);
-   getInitPos(randBlock, randType, initialPos);
+   nextType = rand() % 7;
+   nextRotate = rand() % 4;
+   getBlocks(nextType, nextRotate, nextBlock);
+   getInitPos(nextType, nextRotate, initialPos);
 }
 
 void Board::newBlock() {
@@ -439,11 +454,13 @@ void Board::newBlock() {
    curPosX = (GAME_WIDTH / 2) + initialPos[0] * 20;
    renderBlock(curBlock, curPosX, initialPos[1] * 20);
    curPosY = 0;
-   int randBlock, randType;
-   randBlock = rand() % 7;
-   randType = rand() % 4;
-   getBlocks(randBlock, randType, nextBlock);
-   getInitPos(randBlock, randType, initialPos);
+   type = nextType;
+   rotate = nextRotate;
+
+   nextType = rand() % 7;
+   nextRotate = rand() % 4;
+   getBlocks(nextType, nextRotate, nextBlock);
+   getInitPos(nextType, nextRotate, initialPos);
 }
 
 void Board::drawBoard(bool &drop) {
@@ -527,25 +544,25 @@ void Board::setPosX(char &LR) {
    moveLR(LR);
 }
 
-SDL_Renderer* draw(int (&block)[5][5], int posX, int posY, SDL_Renderer *renderer) {
-   posY = posY % 10000;
-   posY = posY / 1000 * 20;
-   if (posY + 100 > SCREEN_HEIGHT) posY = SCREEN_HEIGHT - 100;
-   for (int y0 = 0, y1 = posY; y0 < 5; y0++, y1+=20) {
-      for (int x0 = 0, x1 = posX; x0 < 5; x0++, x1+=20) {
-         if (block[y0][x0] == 1) {
-            SDL_Rect fillRect = {x1, y1, 20, 20};
-            SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0xFF, 0xFF);
-            SDL_RenderFillRect(renderer, &fillRect);
-         }
-         else if (block[y0][x0] == 2) {
-            SDL_Rect fillRect = {x1, y1, 20, 20};
-            SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0x00, 0xFF);
-            SDL_RenderFillRect(renderer, &fillRect);
-         }
+void Board::rotation(char &rotateLR) {
+   if (rotateLR == 'R') {
+      rotate++;
+      if (rotate > 3) rotate = 0;
+      if (!legalRotate(rotate)) {
+         rotate--;
+         if (rotate < 0) rotate = 3;
       }
+      getBlocks(type, rotate, curBlock);
    }
-   return renderer;
+   else if (rotateLR == 'L') {
+      rotate--;
+      if (rotate < 0) rotate = 3;
+      if (!legalRotate(rotate)) {
+         rotate++;
+         if (rotate > 3) rotate = 0;
+      }
+      getBlocks(type, rotate, curBlock);
+   }
 }
 
 int main(int argc, const char * argv[]) {
@@ -568,6 +585,7 @@ int main(int argc, const char * argv[]) {
          {0,0,1,0,0}}};
    Game game;
    char LR = ' ';
+   char rotateLR = ' ';
    bool quit = false;
    SDL_Event e;
    int x = 0;
@@ -600,12 +618,16 @@ int main(int argc, const char * argv[]) {
                   LR = 'R';
                   board.setPosX(LR);
                   break;
-               case SDLK_UP:
-                  if (rotate == 1) rotate--;
-                  else rotate++;
-                  break;
                case SDLK_DOWN:
                   board.setPosY();
+                  break;
+               case SDLK_z:
+                  rotateLR = 'L';
+                  board.rotation(rotateLR);
+                  break;
+               case SDLK_x:
+                  rotateLR = 'R';
+                  board.rotation(rotateLR);
                   break;
             }
       }
